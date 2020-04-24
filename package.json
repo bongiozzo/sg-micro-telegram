@@ -1,0 +1,31 @@
+{
+  "name": "sg-micro-telegram",
+  "version": "1.0.0",
+  "description": "Micro telegram Shared Goals",
+  "main": "app.js",
+  "dependencies": {
+    "request": "^2.88.2",
+    "request-promise": "^4.2.5",
+    "telegraf": "^3.37.0",
+    "telegraf-command-parts": "^1.0.3",
+    "winston": "^3.2.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bongiozzo/sg-micro-telegram.git"
+  },
+  "keywords": [
+    "shared",
+    "goals"
+  ],
+  "author": "Bongiozzo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bongiozzo/sg-micro-telegram/issues"
+  },
+  "homepage": "https://github.com/bongiozzo/sg-micro-telegram#readme"
+}
