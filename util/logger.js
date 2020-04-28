@@ -50,8 +50,8 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 const loggerWithCtx = {
-    debug: (ctx, msg, ...data) => logger.debug(prepareMessage(ctx, msg, ...data)),
-    error: (ctx, msg, ...data) => logger.error(prepareMessage(ctx, msg, ...data))
+    debug: (ctx, msg, ...data) => console.log(prepareMessage(ctx, msg, ...data)),
+    error: (ctx, msg, ...data) => console.error(prepareMessage(ctx, msg, ...data))
 }
 
 exports.default = loggerWithCtx;
