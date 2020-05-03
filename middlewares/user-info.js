@@ -1,5 +1,7 @@
 "use strict";
 
+require('dotenv').config()
+
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value) }) }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -16,10 +18,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 
 Object.defineProperty(exports, "__esModule", { value: true })
 
-const logger = __importDefault(require("../util/logger"))
 const session = __importDefault(require("../util/session"))
-const User = require("../models/User")
-const req = __importDefault(require("../util/req"))
+const api = require('sg-node-api')
+const User = api.user
+const req = api.req
 
 /**
  * Проверяет текущие значения сессии по хэшу авторизации и SG-объекту пользователя.
@@ -33,7 +35,7 @@ const getUserInfo = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
     let hash = ctx.session.SGAuthToken
     
     const now = new Date().getTime()
-    const newUser = new User.default({
+    const newUser = new User({
         id: null,
         createdAt: now,
         updatedAt: now,
@@ -57,24 +59,27 @@ const getUserInfo = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
             id: newUser.get('telegram_id')
         }).then((response) => {
             if (response.hasOwnProperty('token')) {
-                logger.default.debug(ctx, 'Сессия авторизована, хэш: ', response.token)
+                if (process.env.LOG == 'on') console.log('Сессия авторизована, хэш: ' + response.token)
 
                 // ... значит логин произошел, фиксируем хэш в сессию
                 session.saveToSession(ctx, 'SGAuthToken', response.token)
             }
         }).catch((response) => {
-            logger.default.debug(ctx, 'Сессия не авторизована, ошибка: ', response.message)
+            console.error(ctx, 'Сессия не авторизована, ошибка: ', response.message)
         })
         hash = ctx.session.SGAuthToken
     } else {
-        logger.default.debug(ctx, 'Сессия авторизована, хэш: ', hash)
+        if (process.env.LOG == 'on') console.log('Сессия авторизована, хэш: ' + hash)
     }
     
     // Если в итоге хэш в сессии есть
     if (typeof hash === 'string' && hash.length > 0) {
 
+        // Сетим токен в объект реквестера
+        req.setSessionToken(hash)
+                
         // Если объекта пользователя в сессии нет
-        if (ctx.session.SGUser === null || typeof ctx.session.SGUser === 'undefined') {
+        if (ctx.session.user === null || typeof ctx.session.user === 'undefined') {
             
             // Отправляем запрос на получение информаии о пользователе
             yield req.make(ctx,
@@ -84,18 +89,21 @@ const getUserInfo = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
             }).then(async function (response) {
                 // Сетим юзера в сессии
                 newUser.set(response || {})
-                session.saveToSession(ctx, 'SGUser', newUser)
-                logger.default.debug(ctx, 'Пользователь определен в сессии: ', ctx.session.SGUser.toJSON())
+                session.saveToSession(ctx, 'user', newUser)
+                if (process.env.LOG == 'on') console.log(ctx, 'Пользователь определен в сессии: ' + ctx.session.user.toJSON())
             })
         } else {
-            logger.default.debug(ctx, 'Пользователь определен в сессии: ', ctx.session.SGUser.toJSON())
+            // Сетим юзера в объект реквестера
+            req.setSessionUser(ctx.session.user)
+            
+            if (process.env.LOG == 'on') console.log(ctx, 'Пользователь определен в сессии: ' + ctx.session.user.toJSON())
         }
 
         // ctx.reply('Пользователь определен')
     } else {
     
         // ctx.reply(ctx.i18n.t('scenes.start.registering_user'))
-        logger.default.debug(ctx, 'Starting new user creation')
+        if (process.env.LOG == 'on') console.log(ctx, 'Starting new user creation')
     
         yield req.make(ctx, 'register', {
             method: 'POST',
@@ -106,14 +114,14 @@ const getUserInfo = (ctx, next) => __awaiter(void 0, void 0, void 0, function* (
             id: newUser.get('telegram_id')
         }).then((response) => {
     
-            logger.default.debug(ctx, 'New user has been created')
+            if (process.env.LOG == 'on') console.log(ctx, 'New user has been created')
     
             newUser.set(response || {})
-            session.saveToSession(ctx, 'SGUser', newUser)
+            session.saveToSession(ctx, 'user', newUser)
         
             // ctx.reply(ctx.i18n.t('scenes.start.user_registered', {username: ctx.from.username}))
         }).catch((response) => {
-            logger.default.debug(ctx, 'Ошибка регистрации пользователя: ', response.message)
+            if (process.env.LOG == 'on') console.log(ctx, 'Ошибка регистрации пользователя: ', response.message)
         })
     
         yield getUserInfo(ctx)
