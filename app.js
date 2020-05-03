@@ -25,14 +25,14 @@ const newGoal = new WizardScene('newgoal',
         //   Markup.urlButton('❤️', 'http://telegraf.js.org'),
         //   Markup.callbackButton('➡️ Next', 'next')
         // ]).extra())
-        ctx.reply('New shared goal. Please give a name for your Shared Goal.\nEnglish, meaningful title is preferred, but you are free to choose.', 
+        ctx.reply('Please give a name for your Shared Goal.\nEnglish, meaningful title is preferred, but you are free to choose.', 
             Markup.keyboard(['/cancel']).resize().extra()) // .oneTime())
         return ctx.wizard.next()
     },
 //  stepHandler,
     (ctx) => {
         ctx.session.goalattr = {title: ctx.message.text}
-        ctx.reply('Ok. Please type short ID for your Goal or use default on the button.',
+        ctx.reply('Ok. Please enter the short ID for your Goal or use default with the button.',
             Markup.keyboard([ctx.session.goalattr.title.toLowerCase().split(' ').join('_')].concat('/cancel')).resize().extra()) // Transliterate
         return ctx.wizard.next()
     },
@@ -48,7 +48,7 @@ const newGoal = new WizardScene('newgoal',
     },
     async (ctx) => {
         const contract = ctx.session.newgoal.get('contract')
-        contract.set({goal: ctx.session.newgoal}) // Ambiguous line
+        contract.set({goal: ctx.session.newgoal.get('id')}) // Ambiguous line
         const contractData = await contract.validateFormat(ctx, ctx.message.text)
         if (!contractData) {
             ctx.reply('Wrong format for contract')
