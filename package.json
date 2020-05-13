@@ -6,7 +6,7 @@
   "dependencies": {
     "request": "^2.88.2",
     "request-promise": "^4.2.5",
-    "sg-node-api": "^1.1.8",
+    "sg-node-api": "^1.1.16",
     "telegraf": "^3.38.0",
     "telegraf-command-parts": "^1.0.3",
     "winston": "^3.2.1"

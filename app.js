@@ -8,7 +8,7 @@ const commandParts = require('telegraf-command-parts')
 const Stage = require('telegraf/stage')
 const Scene = require('telegraf/scenes/base')
 const WizardScene = require('telegraf/scenes/wizard')
-const { leave } = Stage
+//const { leave } = Stage
 
 const userInfo = require("./middlewares/user-info")
 const api = require('sg-node-api')
@@ -23,46 +23,47 @@ greeter.enter((ctx) => {
  */
 const commit = new WizardScene('commit',
     async (ctx) => {
-        if (!findGoalFromArg(ctx)) return ctx.scene.leave()     
-        ctx.session.commit = api.commit()
-        ctx.session.commitattr = { contract: ctx.session.currentgoal.get('contract').id }
-        let buttons = [ ctx.session.currentgoal.get('contract').duration + 'm' ]
-        if (ctx.state.command.splitArgs[1] && ctx.session.commit.validateDuration(ctx.state.command.splitArgs[1])) {
-            buttons.unshift(ctx.state.command.splitArgs[1]) 
-            buttons = [...new Set(buttons)] // check unique
+        if (ctx.state.skip) {
+            ctx.wizard.next()
+            return ctx.wizard.steps[ctx.wizard.cursor](ctx)
+        }
+        let buttons = [ ctx.session.currentgoal.get('contract').get('duration') + 'm' ]
+        if (ctx.state.command.splitArgs[1] && ctx.state.command.splitArgs[1] !== buttons[0] && 
+            ctx.session.commit.validateDuration(ctx.state.command.splitArgs[1])) {
+            buttons.unshift(ctx.state.command.splitArgs[1])
         }
         ctx.reply('What is the duration of your current commit in minutes or hours (1h)? Specify or just press the button',
             Markup.keyboard(buttons.concat('/cancel')).resize().extra())
         return ctx.wizard.next()
     },
     (ctx) => {
-        if (ctx.session.commit.validateDuration(ctx.message.text)) {
-            ctx.session.commitattr.duration = ctx.message.text
+        if (!ctx.state.skip && ctx.session.commit.validateDuration(ctx.message.text)) {
+            ctx.session.commit.set({ duration: ctx.message.text })
         }
         ctx.reply('What was done?',
             Markup.keyboard(['/skip','/cancel']).resize().extra())
-        if (ctx.session.currentgoal.get('contract').whats_next) {
-            ctx.reply('You can choose from your What is next? plans:\n' + ctx.session.currentgoal.get('contract').whats_next)
+        if (ctx.session.currentgoal.get('contract').get('whats_next')) {
+            ctx.reply('You can choose from your What is next? plans:\n' + ctx.session.currentgoal.get('contract').get('whats_next'))
         }
         return ctx.wizard.next()
     },
     (ctx) => {
         if (ctx.message.text && ctx.message.text !== '/skip' ) {
-            ctx.session.commitattr.whats_done = ctx.message.text
+            ctx.session.commit.set({ whats_done: ctx.message.text })
         }
         ctx.reply('What\'s next?',
             Markup.keyboard(['/skip','/cancel']).resize().extra())
         return ctx.wizard.next()
     },
     (ctx) => {
-        if (ctx.message.text && ctx.message.text !== '/skip' ) {
-            ctx.session.commitattr.whats_next = ctx.message.text
+        if (ctx.message.text && ctx.message.text !== '/skip') {
+            ctx.session.commit.set({ whats_next: ctx.message.text })
         }
         ctx.reply('Your commit:\n' + 
-            `Goal: ${ctx.session.currentgoal.get('owner').username}/${ctx.session.currentgoal.get('code')}\n` + // replace with universtal id method
-            `Duration: ${ctx.session.commitattr.duration}\n` +
-            ctx.session.commitattr.whats_done ? `What was done: ${ctx.session.commitattr.whats_done}\n` : '' +
-            ctx.session.commitattr.whats_next ? `What is next: ${ctx.session.commitattr.whats_next}\n` : '' +
+            `Goal: ${ctx.session.currentgoal.get('owner')}/${ctx.session.currentgoal.get('key')}\n` + // replace with contract's key attr
+            `Duration: ${ctx.session.commit.get('duration')}m\n` +
+            (ctx.session.commit.get('whats_done') !== null ? `What was done: ${ctx.session.commit.get('whats_done')}\n` : '') +
+            (ctx.session.commit.get('whats_next') !== null ? `What is next: ${ctx.session.commit.get('whats_next')}\n` : '') +
             '\nFinish?',
             Markup.keyboard(['/finish','/cancel']).resize().extra()) // consider button with full text of the command instead /finish
         return ctx.wizard.next()
@@ -70,12 +71,11 @@ const commit = new WizardScene('commit',
     async (ctx) => {
         if (ctx.message.text !== '/finish') {
             ctx.reply('Ok... Leaving!')
-            return ctx.scene.leave()
+            return ctx.scene.enter('greeter')
         }
-        ctx.session.commit.set(ctx.session.commitattr)
-        ctx.session.commit.save()
+        ctx.session.commit.save(ctx)
         ctx.reply('Commit is committed :)')
-        return ctx.scene.leave()
+        return ctx.scene.enter('greeter')
     }
 )
 
@@ -84,42 +84,14 @@ const commit = new WizardScene('commit',
  */
 const contract = new WizardScene('contract',
     async (ctx) => {
-        if (!findGoalFromArg(ctx)) return ctx.scene.leave()     
-        ctx.session.contract = api.contract()
-        ctx.session.commitattr = { contract: ctx.session.currentgoal.get('contract').id }
-        let buttons = [ ctx.session.currentgoal.get('contract').duration + 'm' ]
-        if (ctx.state.command.splitArgs[1] && ctx.session.commit.validateDuration(ctx.state.command.splitArgs[1])) {
-            buttons.unshift(ctx.state.command.splitArgs[1]) 
-            buttons = [...new Set(buttons)] // check unique
-        }
-        ctx.reply('What is the duration of your current commit in minutes or hours (1h)? Specify or just press the button',
-            Markup.keyboard(buttons.concat('/cancel')).resize().extra())
-        return ctx.wizard.next()
-    },
-    (ctx) => {
-        if (ctx.session.commit.validateDuration(ctx.message.text)) {
-            ctx.session.commitattr.duration = ctx.message.text
-        }
-        ctx.reply('What was done?',
-            Markup.keyboard(['/skip','/cancel']).resize().extra())
-        if (ctx.session.currentgoal.get('contract').whats_next) {
-            ctx.reply('You can choose from your What is next? plans:\n' + ctx.session.currentgoal.get('contract').whats_next)
-        }
-        return ctx.wizard.next()
-    },
-    (ctx) => {
-        if (ctx.message.text && ctx.message.text !== '/skip' ) {
-            ctx.session.commitattr.whats_done = ctx.message.text
-        }
-        ctx.reply('What\'s next?',
-            Markup.keyboard(['/skip','/cancel']).resize().extra())
-        return ctx.wizard.next()
+        if (!(await findGoalFromArg(ctx))) return ctx.scene.enter('greeter')
+        ctx.session.contract = new api.contract()
     },
     (ctx) => {
         if (ctx.message.text && ctx.message.text !== '/skip' ) {
             ctx.session.commitattr.whats_next = ctx.message.text
         }
-        ctx.reply('Your commit:\n' + 
+        ctx.reply('Your new contract:\n' + 
             `Goal: ${ctx.session.currentgoal.get('owner').username}/${ctx.session.currentgoal.get('code')}\n` + // replace with universtal id method
             `Duration: ${ctx.session.commitattr.duration}\n` +
             ctx.session.commitattr.whats_done ? `What was done: ${ctx.session.commitattr.whats_done}\n` : '' +
@@ -131,12 +103,11 @@ const contract = new WizardScene('contract',
     async (ctx) => {
         if (ctx.message.text !== '/finish') {
             ctx.reply('Ok... Leaving!')
-            return ctx.scene.leave()
+            return ctx.scene.enter('greeter')
         }
-        ctx.session.commit.set(ctx.session.commitattr)
-        ctx.session.commit.save()
-        ctx.reply('Commit is committed!')
-        return ctx.scene.leave()
+        ctx.session.contract.save()
+        ctx.reply('Congrats! New contract was signed!')
+        return ctx.scene.enter('greeter')
     }
 )
 
@@ -150,42 +121,41 @@ const newGoal = new WizardScene('newgoal',
         return ctx.wizard.next()
     },
     (ctx) => {
-        ctx.session.goalattr = {title: ctx.message.text} // Use regexp for Text without specials from the start
-        ctx.reply('Ok. Please enter the short ID (Code) for your Goal or use default with the button.',
-            Markup.keyboard([ctx.session.goalattr.title.toLowerCase().split(' ').join('_')].concat('/cancel')).resize().extra()) // Transliterate
+        ctx.session.currentgoal = new api.goal
+        ctx.session.currentgoal.set({ title: ctx.message.text }) // Use regexp for Text without specials from the start
+        ctx.reply('Ok. Please enter the short key for your Goal or use default with the button.',
+            Markup.keyboard([ctx.message.text.toLowerCase().split(' ').join('_')].concat('/cancel')).resize().extra()) // Transliterate
         return ctx.wizard.next()
     },
     (ctx) => {
-        if (!/^[a-zA-Z0-9]+$/.test(ctx.message.text)) {
-            ctx.reply('Please use short string for ID (Code) without spaces and special letters')
+        if (!/^[a-zA-Z0-9-_]+$/.test(ctx.message.text)) { // Use regexp for Key without / and specials
+            ctx.reply('Please use short string for key without spaces and special letters')
             return
         }
-        ctx.session.goalattr.code = ctx.message.text
-        ctx.session.currentgoal = api.goal()
-        ctx.session.currentgoal.set(ctx.session.goalattr)
+        ctx.session.currentgoal.set({ key: ctx.message.text })
         ctx.replyWithMarkdown('Please specify the Contract for your Goal.\nThe most common choice is `1h every day`.\n' +
-                              'Other examples are `30m monday, thursday` or `2h 10, 25`',
-            Markup.keyboard(['1h every day', '30m monday, thursday', '2h 10, 25'].concat('/cancel')).resize().extra())
+                              'Other examples are `30m every monday, thursday` or `2h every 10, 25`', // remove every
+            Markup.keyboard(['1h every day', '30m every monday, thursday', '2h every 10, 25'].concat('/cancel')).resize().extra())
         return ctx.wizard.next()
     },
     async (ctx) => {
-        const contract = ctx.session.newgoal.get('contract')
-        contract.set({goal: ctx.session.currentgoal.get('id')}) // Ambiguous line
+        const contract = ctx.session.currentgoal.get('contract')
         const contractData = await contract.validateFormat(ctx, ctx.message.text)
         if (!contractData) {
-            ctx.reply('Wrong format for contract', Markup.keyboard(['/cancel']).resize().extra())
+            ctx.reply('Wrong format for contract')
             return
         }
         contract.set(contractData)
-        ctx.session.currentgoal.save(ctx)
+        const saved = await ctx.session.currentgoal.save(ctx)
+        contract.set({goal: saved.get('id')}) // Ambiguous line
         contract.save(ctx)
     
-        const goalUrl = `${ctx.session.currentgoal.get('owner').username}/${ctx.session.currentgoal.get('code')}`
+        const goalUrl = `${ctx.session.user.get('username')}/${saved.get('key')}` // Replace with Contract's Key
 
         ctx.reply('You goal is created! You can share it with others\n' + 
                   'For editing your goals use /mygoals\nYou already can forward this command to your friends')
         ctx.reply(`/contract ${goalUrl} ${contract.toString()}`, Markup.keyboard([]).extra()) // Remove keyboard?
-        return ctx.scene.leave()
+        return ctx.scene.enter('greeter')
     }
 )
 
@@ -194,25 +164,23 @@ const newGoal = new WizardScene('newgoal',
  */
 const deleteGoal = new WizardScene('deletegoal',
     async (ctx) => {
-        if (!findGoalFromArg(ctx)) return ctx.scene.leave()     
+        if (!(await findGoalFromArg(ctx))) return ctx.scene.enter('greeter')
         ctx.replyWithMarkdown('Please send `I\'m sure!` to delete.', Markup.keyboard(['/cancel']).resize().extra())
         return ctx.wizard.next()
     },
     (ctx) => {
         if (ctx.message.text !== 'I\'m sure!') {
             ctx.reply('Text isn\'t identical. Returned to main menu.')
-            return ctx.scene.leave()
+            return ctx.scene.enter('greeter')
         }
         ctx.session.currentgoal.set({archived: true}) // replace with Delete goal
         ctx.session.currentgoal.save(ctx)
         ctx.reply('Goal is gone...')
-        return ctx.scene.leave()
+        return ctx.scene.enter('greeter')
     }
 )
 
 const stage = new Stage()
-stage.command('/cancel', leave())
-
 stage.register(greeter, contract, newGoal, commit, deleteGoal)
 const bot = new Telegraf(process.env.BOT_TOKEN)
 
@@ -229,19 +197,45 @@ bot.use(async (ctx, next) => {
     return next()
 })
 
+// Find a way to use one
+contract.command('/cancel', (ctx) => {
+    ctx.scene.enter('greeter')
+})
+newGoal.command('/cancel', (ctx) =>  {
+    ctx.scene.enter('greeter')
+})
+commit.command('/cancel', (ctx) =>  {
+    ctx.scene.enter('greeter')
+})
+deleteGoal.command('/cancel', (ctx) =>  {
+    ctx.scene.enter('greeter')
+})
+
 /**
  * /commit sg 90min WhatDone WhatsNext
  */
 bot.command('/commit', async (ctx) =>  {
     if (!ctx.state.command.splitArgs[0]) {
         const contracts = await api.contract().findByUser(ctx)
-        const buttons = contracts.map((c) => { // .filter((c) => (c.get('today') === true)) - overdue, active and sort duration desc
-            return `/commit ${c.get('goal').code} ${c.get('duration')}`
+        const buttons = contracts.filter((c) => (c.get('today') === true || c.get('overdue') === true)).map((c) => { //  - overdue, active and sort duration desc
+            return `/commit ${c.get('goal').key} ${c.get('duration')}m "Was done"` // remove Was Done
         })
         ctx.reply('Select a contract to commit:', 
             Markup.keyboard(buttons.concat('/cancel')).resize().extra())
     } else {
+        ctx.session.commit = new api.commit
+        if (!(await findGoalFromArg(ctx))) return // replace with contract.find
+        ctx.session.commit.set({ contract: ctx.session.currentgoal.get('contract').get('id') })
+        // const re = new RegExp(/((?<owner>[^/\s]+)\/)?(?<key>[^\s]+)\s+((?<hours>\d+)\s*(h|hr)\s+)?((?<minutes>\d+)\s*(m|min)\s+)?$/)
+        const sub_matches = ctx.message.text.match(ctx.session.commit.re) // replace with ctx.session.commit.re without mandatory whats_done
+        if (!sub_matches || !sub_matches.groups) return
+        ctx.session.commit.set({
+            duration: sub_matches.groups.minutes ? sub_matches.groups.minutes : sub_matches.groups.hours * 60,
+            whats_done: 'Was done',
+            whats_next: 'Some next'
+        })
         ctx.scene.enter('commit')
+        ctx.state.skip = true
     }
 })
 
@@ -252,7 +246,7 @@ bot.command('/commit', async (ctx) =>  {
 bot.command('/contract', async (ctx) =>  {
     ctx.scene.enter('contract')
     if (ctx.state.command.splitArgs[0]) {
-        if (!findGoalFromArg(ctx)) return ctx.scene.leave()     
+        if (!(await findGoalFromArg(ctx))) return ctx.scene.leave()     
         ctx.wizard.next()
     }
 })
@@ -283,9 +277,9 @@ bot.command('/mygoals', async (ctx) =>  {
  */
 bot.command('/deletegoal', async (ctx) =>  {
     if (!ctx.state.command.splitArgs[0]) {
-        const goals = await api.goal().findAll(ctx)
+        const goals = await api.goal().findAll(ctx) // Error
         const buttons = goals.map((c) => {
-            return `/deletegoal ${c.get('code')}`
+            return `/deletegoal ${c.get('key')}`
         })
         ctx.reply('Choose a goal to delete:', 
             Markup.keyboard(buttons.concat('/cancel')).resize().extra())
@@ -299,7 +293,7 @@ bot.launch()
 // Move the logic of this function to sg-node-api
 function getIdFromArg (ctx) {
     let id = ctx.state.command.splitArgs[0]
-    const re = new RegExp('^(?<owner>[^/\\s]+)/(?<code>.+)$')
+    const re = new RegExp('^(?<owner>[^/\\s]+)/(?<key>.+)$')
     const sub_matches = id.match(re)
     if (!sub_matches || !sub_matches.groups) {
         id = ctx.session.user.get('username') + '/' + id
