@@ -105,7 +105,7 @@ const contract = new WizardScene('contract',
             ctx.reply('Ok... Leaving!')
             return ctx.scene.enter('greeter')
         }
-        ctx.session.contract.save()
+        ctx.session.contract.save(ctx)
         ctx.reply('Congrats! New contract was signed!')
         return ctx.scene.enter('greeter')
     }
@@ -170,7 +170,7 @@ const deleteGoal = new WizardScene('deletegoal',
     },
     (ctx) => {
         if (ctx.message.text !== 'I\'m sure!') {
-            ctx.reply('Text isn\'t identical. Returned to main menu.')
+            ctx.reply('Text isn\'t identical. Returning to main menu.')
             return ctx.scene.enter('greeter')
         }
         ctx.session.currentgoal.set({archived: true}) // replace with Delete goal
@@ -225,7 +225,7 @@ bot.command('/commit', async (ctx) =>  {
     } else {
         ctx.session.commit = new api.commit
         if (!(await findGoalFromArg(ctx))) return // replace with contract.find
-        ctx.session.commit.set({ contract: ctx.session.currentgoal.get('contract').get('id') })
+        ctx.session.commit.set({ contract: ctx.session.currentgoal.get('contract') })
         // const re = new RegExp(/((?<owner>[^/\s]+)\/)?(?<key>[^\s]+)\s+((?<hours>\d+)\s*(h|hr)\s+)?((?<minutes>\d+)\s*(m|min)\s+)?$/)
         const sub_matches = ctx.message.text.match(ctx.session.commit.re) // replace with ctx.session.commit.re without mandatory whats_done
         if (!sub_matches || !sub_matches.groups) return
